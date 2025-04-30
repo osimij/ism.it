@@ -67,9 +67,19 @@ SOCIAL_MEDIA_TEXT = "Наши социальные сети:\n- Instagram: @shod
 # --- KEYBOARD DEFINITIONS ---
 # (All your get_..._keyboard functions remain exactly the same)
 def get_main_menu_keyboard():
-    keyboard = [ ... ] # Your full keyboard definition
+    # PASTE YOUR ACTUAL KEYBOARD DEFINITION HERE!
+    keyboard = [
+        [InlineKeyboardButton(SERVICE_DATA['main_web_dev']['title'], callback_data='main_web_dev')],
+        [InlineKeyboardButton(SERVICE_DATA['main_shopify']['title'], callback_data='main_shopify')],
+        [InlineKeyboardButton("3️⃣ Подключение платежной системы", callback_data='main_payment')],
+        [InlineKeyboardButton(SERVICE_DATA['main_targeting']['title'], callback_data='main_targeting')],
+        [InlineKeyboardButton(SERVICE_DATA['main_seo']['title'], callback_data='main_seo')],
+        [InlineKeyboardButton(SERVICE_DATA['main_context']['title'], callback_data='main_context')],
+        [InlineKeyboardButton(SERVICE_DATA['main_creative']['title'], callback_data='main_creative')],
+        [InlineKeyboardButton(SERVICE_DATA['main_registration']['title'], callback_data='main_registration')],
+        [InlineKeyboardButton("🌐 Наши соц. сети", callback_data='main_social')],
+    ]
     return InlineKeyboardMarkup(keyboard)
-# ... other get_..._keyboard functions ...
 
 # ── 2. HANDLERS (Your existing async handlers) ─────────────────────────────────
 # (start and button_callback_handler functions remain exactly the same async def ...)
