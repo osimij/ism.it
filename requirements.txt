@@ -1,4 +1,2 @@
-python-telegram-bot
-Flask[async] # <-- Changed this line
-gunicorn
-asyncio
+python-telegram-bot[http2]>=22.0,<23.0
+# uvloop~=0.19.0 # Optional: for potential performance boost on Linux
