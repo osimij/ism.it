@@ -2,6 +2,8 @@
 import logging
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+# Import ParseMode for specifying Markdown V2
+from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -30,7 +32,8 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
-SUPPORT_CONTACT_INFO = "Для связи с поддержкой напишите @SHODROP_SUPPORT" # Make sure this is correct for ISM.IT
+# Updated support contact
+SUPPORT_CONTACT_INFO = "Для связи с поддержкой напишите @ismit_support"
 PLACEHOLDER_URL = "https://google.com"
 
 # --- DATA STRUCTURE ---
@@ -101,25 +104,23 @@ SERVICE_CATEGORIES = {
 }
 
 # --- MESSAGE TEXTS ---
-# Updated MAIN_MENU_TEXT
+# Updated MAIN_MENU_TEXT with Markdown link
 MAIN_MENU_TEXT = """
-Добро пожаловать в ISM.IT — 
-Ваша IT-компания! 🚀
+Добро пожаловать в ISM\.IT —
+Ваша IT\-компания\! 🚀
 
-Мы здесь, чтобы помочь вашему бизнесу расти и развиваться!
+Мы здесь, чтобы помочь вашему бизнесу расти и развиваться\!
 
 💡 Что вы найдете в этом боте?
-- Список наших услуг с переходом на сайт
-- Отзывы клиентов 
-- Ответы на ваши вопросы
-- Возможность связаться с нашей командой
+\- Список наших услуг с переходом на сайт
+\- Отзывы клиентов
+\- Ответы на ваши вопросы
+\- Возможность связаться с нашей командой
 
-🌐 Узнайте больше: ism.it
-💬 Чат поддержки: Написать нам
+🌐 Узнайте больше: ism\.it
+💬 Чат поддержки: [Написать нам](https://t.me/ismit_support)
 """
-# Note: The "Чат поддержки" text might need a corresponding button/action later if "Написать нам"
-# is intended to be interactive within the bot itself, rather than just informational text.
-# For now, it's just part of the welcome message text.
+# Note: Special characters like ., !, -, # etc. MUST be escaped with \ for MarkdownV2
 
 # --- KEYBOARD DEFINITIONS ---
 def get_main_menu_keyboard():
@@ -127,8 +128,7 @@ def get_main_menu_keyboard():
     keyboard = []
     for key, data in SERVICE_CATEGORIES.items():
         keyboard.append([InlineKeyboardButton(data["title"], callback_data=key)])
-    # If you want the "Написать нам" part to be a button, add it here:
-    # keyboard.append([InlineKeyboardButton("💬 Написать нам", callback_data="contact_support_main")])
+    # No separate "Написать нам" button needed as it's linked in the text now
     return InlineKeyboardMarkup(keyboard)
 
 def get_category_detail_keyboard(category_key):
@@ -161,7 +161,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.warning("Start command received without a message context.")
         return
 
-    text = MAIN_MENU_TEXT # Use the updated text
+    text = MAIN_MENU_TEXT
     try:
         keyboard = get_main_menu_keyboard()
     except Exception as e:
@@ -171,13 +171,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
          return
 
     try:
+        # Use ParseMode.MARKDOWN_V2 for the linked text
         if update.callback_query:
             logger.info(f"Editing message {message.message_id} for user {user.id} to main menu.")
-            # Make sure parse_mode is None or HTML if your text uses HTML formatting
-            await message.edit_text(text=text, reply_markup=keyboard, parse_mode=None, disable_web_page_preview=True)
+            await message.edit_text(
+                text=text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.MARKDOWN_V2, # Use MarkdownV2
+                disable_web_page_preview=True
+            )
         elif update.message:
              logger.info(f"Replying to message {message.message_id} for user {user.id} with main menu.")
-             await message.reply_text(text=text, reply_markup=keyboard, parse_mode=None, disable_web_page_preview=True)
+             await message.reply_text(
+                text=text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.MARKDOWN_V2, # Use MarkdownV2
+                disable_web_page_preview=True
+            )
     except Exception as e:
         logger.error(f"Error sending/editing message in start handler for user {user.id}: {e}", exc_info=True)
 
@@ -208,19 +218,17 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     try:
         # --- Routing ---
         if callback_data == 'back_to_main':
+            # Pass the query object to start for potential editing
             await start(update, context)
             return
         elif callback_data in SERVICE_CATEGORIES:
             category_info = SERVICE_CATEGORIES[callback_data]
+            # Message title for sub-menus doesn't need special formatting unless desired
             text = category_info["message_title"]
             keyboard = get_category_detail_keyboard(callback_data)
         elif callback_data.startswith('support_'):
             text = SUPPORT_CONTACT_INFO
             keyboard = get_back_to_main_keyboard()
-        # Add handling for the potential main contact button if you added it:
-        # elif callback_data == "contact_support_main":
-        #     text = SUPPORT_CONTACT_INFO
-        #     keyboard = get_back_to_main_keyboard()
         else:
             logger.warning(f"Unhandled callback_data '{callback_data}' from user {user.id}")
             await query.edit_message_text("Неизвестная команда.", reply_markup=get_back_to_main_keyboard())
@@ -229,21 +237,42 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         # --- Edit ---
         if text and keyboard:
              logger.info(f"Editing message {message.message_id} for user {user.id}. Action: {callback_data}")
-             await message.edit_text(text=text, reply_markup=keyboard, parse_mode=None, disable_web_page_preview=True)
-        elif text:
+             await message.edit_text(
+                 text=text,
+                 reply_markup=keyboard,
+                 parse_mode=None, # Sub-menu text likely doesn't need parsing now
+                 disable_web_page_preview=True
+            )
+        elif text: # For the support message which might just use the back button
              logger.info(f"Editing message {message.message_id} for user {user.id} (text only). Action: {callback_data}")
-             await message.edit_text(text=text, parse_mode=None, disable_web_page_preview=True)
+             await message.edit_text(
+                 text=text,
+                 reply_markup=keyboard, # Include keyboard if it was generated (e.g., back button)
+                 parse_mode=None,
+                 disable_web_page_preview=True
+             )
 
     except Exception as e:
         logger.error(f"Error processing callback data '{callback_data}' for user {user.id}: {e}", exc_info=True)
         try:
+            # Use a safe back button when erroring
             await query.edit_message_text("Произошла ошибка при обработке вашего запроса.", reply_markup=get_back_to_main_keyboard())
         except Exception as inner_e:
             logger.error(f"Failed to send error message to user {user.id} after callback error: {inner_e}")
 
 # --- APPLICATION SETUP ---
 logger.info("Building Telegram Application...")
-application = ( Application.builder().token(BOT_TOKEN).read_timeout(7).write_timeout(20).connect_timeout(5).pool_timeout(10).build() )
+application = (
+    Application.builder()
+    .token(BOT_TOKEN)
+    .read_timeout(7)
+    .write_timeout(20)
+    .connect_timeout(5)
+    .pool_timeout(10)
+    .build()
+)
+
+# Register handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(button_callback_handler))
 logger.info("Handlers registered.")
@@ -254,5 +283,11 @@ if __name__ == "__main__":
     logger.info(f"Webhook path: {WEBHOOK_PATH}")
     logger.info(f"Attempting to set webhook via run_webhook: {PUBLIC_URL}{WEBHOOK_PATH}")
 
-    application.run_webhook( listen="0.0.0.0", port=PORT, url_path=WEBHOOK_PATH.lstrip("/"), webhook_url=f"{PUBLIC_URL}{WEBHOOK_PATH}", secret_token=SECRET_TOKEN )
-    
+    # run_webhook handles initialization, webhook setting, and the web server loop
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=WEBHOOK_PATH.lstrip("/"), # Expects path without leading slash
+        webhook_url=f"{PUBLIC_URL}{WEBHOOK_PATH}", # Full URL for Telegram
+        secret_token=SECRET_TOKEN # Pass optional secret token if set
+    )
