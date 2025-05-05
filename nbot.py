@@ -30,7 +30,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
-SUPPORT_CONTACT_INFO = "Для связи с поддержкой напишите @SHODROP_SUPPORT"
+SUPPORT_CONTACT_INFO = "Для связи с поддержкой напишите @SHODROP_SUPPORT" # Make sure this is correct for ISM.IT
 PLACEHOLDER_URL = "https://google.com"
 
 # --- DATA STRUCTURE ---
@@ -101,13 +101,25 @@ SERVICE_CATEGORIES = {
 }
 
 # --- MESSAGE TEXTS ---
+# Updated MAIN_MENU_TEXT
 MAIN_MENU_TEXT = """
-Добро пожаловать в SHODROP — Ваше e-Commerce агентство! 🚀
+Добро пожаловать в ISM.IT — 
+Ваша IT-компания! 🚀
 
-Мы здесь, чтобы помочь вашему онлайн-бизнесу расти и развиваться!
+Мы здесь, чтобы помочь вашему бизнесу расти и развиваться!
 
-Выберите интересующую вас категорию услуг:
+💡 Что вы найдете в этом боте?
+- Список наших услуг с переходом на сайт
+- Отзывы клиентов 
+- Ответы на ваши вопросы
+- Возможность связаться с нашей командой
+
+🌐 Узнайте больше: ism.it
+💬 Чат поддержки: Написать нам
 """
+# Note: The "Чат поддержки" text might need a corresponding button/action later if "Написать нам"
+# is intended to be interactive within the bot itself, rather than just informational text.
+# For now, it's just part of the welcome message text.
 
 # --- KEYBOARD DEFINITIONS ---
 def get_main_menu_keyboard():
@@ -115,6 +127,8 @@ def get_main_menu_keyboard():
     keyboard = []
     for key, data in SERVICE_CATEGORIES.items():
         keyboard.append([InlineKeyboardButton(data["title"], callback_data=key)])
+    # If you want the "Написать нам" part to be a button, add it here:
+    # keyboard.append([InlineKeyboardButton("💬 Написать нам", callback_data="contact_support_main")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_category_detail_keyboard(category_key):
@@ -125,17 +139,11 @@ def get_category_detail_keyboard(category_key):
         return get_back_to_main_keyboard()
 
     keyboard = []
-    # Add button for each sub-item, linking to the placeholder URL
     for item_label in category_info["sub_items"]:
         keyboard.append([InlineKeyboardButton(item_label, url=PLACEHOLDER_URL)])
-
-    # Add Support button
     support_callback = f"support_{category_key.split('_', 1)[-1]}"
     keyboard.append([InlineKeyboardButton("📩 Есть вопрос? Связаться с поддержкой", callback_data=support_callback)])
-
-    # Add Back button
     keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data='back_to_main')])
-
     return InlineKeyboardMarkup(keyboard)
 
 def get_back_to_main_keyboard():
@@ -153,7 +161,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.warning("Start command received without a message context.")
         return
 
-    text = MAIN_MENU_TEXT
+    text = MAIN_MENU_TEXT # Use the updated text
     try:
         keyboard = get_main_menu_keyboard()
     except Exception as e:
@@ -165,10 +173,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         if update.callback_query:
             logger.info(f"Editing message {message.message_id} for user {user.id} to main menu.")
-            await message.edit_text(text=text, reply_markup=keyboard, parse_mode='HTML', disable_web_page_preview=True)
+            # Make sure parse_mode is None or HTML if your text uses HTML formatting
+            await message.edit_text(text=text, reply_markup=keyboard, parse_mode=None, disable_web_page_preview=True)
         elif update.message:
              logger.info(f"Replying to message {message.message_id} for user {user.id} with main menu.")
-             await message.reply_text(text=text, reply_markup=keyboard, parse_mode='HTML', disable_web_page_preview=True)
+             await message.reply_text(text=text, reply_markup=keyboard, parse_mode=None, disable_web_page_preview=True)
     except Exception as e:
         logger.error(f"Error sending/editing message in start handler for user {user.id}: {e}", exc_info=True)
 
@@ -176,23 +185,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Parses the CallbackQuery and updates the message."""
     query = update.callback_query
-    if not query: # Check query exists first
+    if not query:
         logger.warning("Callback query received without query object.")
-        return # Cannot proceed without a query
+        return
 
-    # Attempt to answer the query first thing
     try:
         await query.answer()
     except Exception as e:
-        # Log as warning, bot might still be able to process the rest
         logger.warning(f"Failed to answer callback query {query.id}: {e}")
 
-    # Check if message context exists *after* answering
     if not query.message:
         logger.warning(f"Callback query {query.id} received without message object.")
-        return # Cannot edit a message if it doesn't exist
+        return
 
-    # Now we know query and query.message exist
     message = query.message
     user = query.from_user
     callback_data = query.data
@@ -211,8 +216,11 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             keyboard = get_category_detail_keyboard(callback_data)
         elif callback_data.startswith('support_'):
             text = SUPPORT_CONTACT_INFO
-            # Using get_back_to_main_keyboard, assuming support message doesn't need specific back context
             keyboard = get_back_to_main_keyboard()
+        # Add handling for the potential main contact button if you added it:
+        # elif callback_data == "contact_support_main":
+        #     text = SUPPORT_CONTACT_INFO
+        #     keyboard = get_back_to_main_keyboard()
         else:
             logger.warning(f"Unhandled callback_data '{callback_data}' from user {user.id}")
             await query.edit_message_text("Неизвестная команда.", reply_markup=get_back_to_main_keyboard())
@@ -221,19 +229,10 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         # --- Edit ---
         if text and keyboard:
              logger.info(f"Editing message {message.message_id} for user {user.id}. Action: {callback_data}")
-             await message.edit_text(
-                 text=text,
-                 reply_markup=keyboard,
-                 parse_mode=None, # Set to 'HTML' or 'Markdown' if title needs formatting
-                 disable_web_page_preview=True
-            )
-        elif text: # Fallback if only text needs changing (e.g., support message without buttons)
+             await message.edit_text(text=text, reply_markup=keyboard, parse_mode=None, disable_web_page_preview=True)
+        elif text:
              logger.info(f"Editing message {message.message_id} for user {user.id} (text only). Action: {callback_data}")
-             await message.edit_text(
-                 text=text,
-                 parse_mode=None,
-                 disable_web_page_preview=True
-             )
+             await message.edit_text(text=text, parse_mode=None, disable_web_page_preview=True)
 
     except Exception as e:
         logger.error(f"Error processing callback data '{callback_data}' for user {user.id}: {e}", exc_info=True)
@@ -244,17 +243,7 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
 
 # --- APPLICATION SETUP ---
 logger.info("Building Telegram Application...")
-application = (
-    Application.builder()
-    .token(BOT_TOKEN)
-    .read_timeout(7)
-    .write_timeout(20)
-    .connect_timeout(5)
-    .pool_timeout(10)
-    .build()
-)
-
-# Register handlers
+application = ( Application.builder().token(BOT_TOKEN).read_timeout(7).write_timeout(20).connect_timeout(5).pool_timeout(10).build() )
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(button_callback_handler))
 logger.info("Handlers registered.")
@@ -265,11 +254,5 @@ if __name__ == "__main__":
     logger.info(f"Webhook path: {WEBHOOK_PATH}")
     logger.info(f"Attempting to set webhook via run_webhook: {PUBLIC_URL}{WEBHOOK_PATH}")
 
-    # run_webhook handles initialization, webhook setting, and the web server loop
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=WEBHOOK_PATH.lstrip("/"), # Expects path without leading slash
-        webhook_url=f"{PUBLIC_URL}{WEBHOOK_PATH}", # Full URL for Telegram
-        secret_token=SECRET_TOKEN # Pass optional secret token if set
-    )
+    application.run_webhook( listen="0.0.0.0", port=PORT, url_path=WEBHOOK_PATH.lstrip("/"), webhook_url=f"{PUBLIC_URL}{WEBHOOK_PATH}", secret_token=SECRET_TOKEN )
+    
